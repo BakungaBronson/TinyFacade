@@ -69,6 +69,19 @@ export function useLlama(modelPath: string | null) {
 
         contextRef.current = context;
         await InferenceServiceBridge.registerModel(context.id, modelPath!);
+
+        // Diagnostic: log model tool calling capabilities
+        try {
+          const model = (context as any).model;
+          console.warn('[LlamaVision] Model info:', JSON.stringify(model, null, 2));
+          console.warn('[LlamaVision] Jinja supported:', (context as any).isJinjaSupported?.());
+          if (model?.chatTemplates) {
+            console.warn('[LlamaVision] Chat templates:', JSON.stringify(model.chatTemplates, null, 2));
+          }
+        } catch (e: any) {
+          console.warn('[LlamaVision] Could not read model info:', e?.message);
+        }
+
         console.warn('[LlamaVision] Ready! (registered with service)');
         setModelStatus('ready');
       } catch (err: any) {

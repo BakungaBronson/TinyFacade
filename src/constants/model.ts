@@ -20,7 +20,7 @@ export const COMPLETION_PARAMS = {
   n_predict: 512,
   temperature: 0.7,
   top_p: 0.9,
-  stop: ['<|end|>', '<|eot_id|>', '</s>', '<|END_RESPONSE|>'] as string[],
+  stop: ['<|end|>', '<|eot_id|>', '</s>', '<|END_RESPONSE|>', '<|END_OF_TURN_TOKEN|>'] as string[],
 };
 
 export const SYSTEM_PROMPT =
