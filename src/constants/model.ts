@@ -1,7 +1,7 @@
 import {ExternalDirectoryPath, DocumentDirectoryPath} from '@dr.pogodin/react-native-fs';
 import {Platform} from 'react-native';
 
-// Android: files live in /sdcard/Android/data/com.llamavision/files/
+// Android: files live in /sdcard/Android/data/com.tinyfacade/files/
 // iOS: files live in the app's Documents directory
 const BASE_DIR = Platform.OS === 'android' ? ExternalDirectoryPath : DocumentDirectoryPath;
 

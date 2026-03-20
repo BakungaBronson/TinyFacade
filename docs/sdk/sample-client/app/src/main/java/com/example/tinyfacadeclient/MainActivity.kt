@@ -18,7 +18,7 @@ import com.tinyfacade.IInferenceService
  * Sample client app demonstrating AIDL binding to the Tiny Facade inference service.
  *
  * Prerequisites:
- * 1. Tiny Facade (LlamaVision) must be installed
+ * 1. Tiny Facade must be installed
  * 2. A model must be downloaded/available
  * 3. Both apps must share the same signing key (debug keystore for dev)
  */
@@ -134,7 +134,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindToService() {
         val intent = Intent("com.tinyfacade.INFERENCE_SERVICE").apply {
-            setPackage("com.llamavision")
+            setPackage("com.tinyfacade")
         }
         val bound = bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         if (!bound) {

@@ -2,7 +2,7 @@
 
 ## Architecture Overview
 
-LlamaVision exposes an on-device AI inference engine via an Android [AIDL](https://developer.android.com/develop/background-work/services/aidl) interface. The service runs as a **foreground service** (persistent notification) so the OS doesn't kill it during long inference tasks.
+Tiny Facade exposes an on-device AI inference engine via an Android [AIDL](https://developer.android.com/develop/background-work/services/aidl) interface. The service runs as a **foreground service** (persistent notification) so the OS doesn't kill it during long inference tasks.
 
 Key components:
 
@@ -13,7 +13,7 @@ Key components:
 
 ```
 ┌─────────────────┐         AIDL (Binder IPC)         ┌──────────────────┐
-│  Client App     │ ──────────────────────────────────▶│  LlamaVision     │
+│  Client App     │ ──────────────────────────────────▶│  Tiny Facade     │
 │  (test-client)  │◀────── IInferenceCallback ────────│  InferenceService│
 └─────────────────┘                                    └──────────────────┘
 ```
@@ -66,7 +66,7 @@ private val connection = object : ServiceConnection {
 
 // Bind
 val intent = Intent("com.tinyfacade.INFERENCE_SERVICE").apply {
-    setPackage("com.llamavision")
+    setPackage("com.tinyfacade")
 }
 bindService(intent, connection, Context.BIND_AUTO_CREATE)
 ```
@@ -77,7 +77,7 @@ bindService(intent, connection, Context.BIND_AUTO_CREATE)
 val models: List<String> = service!!.availableModels
 // Returns absolute paths, e.g.:
 // ["/storage/emulated/0/Download/model.gguf",
-//  "/storage/emulated/0/Android/data/com.llamavision/files/phi-3.gguf"]
+//  "/storage/emulated/0/Android/data/com.tinyfacade/files/phi-3.gguf"]
 ```
 
 ### 3. Load a Model
@@ -173,7 +173,7 @@ cd test-client
 
 ### Usage
 
-1. **Install and open the main LlamaVision app** first (so the service process exists)
+1. **Install and open the main Tiny Facade app** first (so the service process exists)
 2. **Open the test client** ("AIDL Test Client" in launcher)
 3. **Tap Bind** — the Spinner auto-populates with discovered `.gguf` models
 4. **Select a model** from the dropdown
@@ -186,7 +186,7 @@ cd test-client
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `bindService` returns false | Main app not installed or wrong package | Ensure LlamaVision is installed |
+| `bindService` returns false | Main app not installed or wrong package | Ensure Tiny Facade is installed |
 | `SecurityException` on bind | Signing key mismatch | Use the same `debug.keystore` |
 | Spinner is empty | No `.gguf` files on device | Copy a model to Downloads or the app's external files dir |
 | `onError: No model loaded` | Called `sendMessage` before `loadModel` completed | Wait for `onModelLoaded(true)` |

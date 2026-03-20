@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
         }
         log("Binding...")
         val intent = Intent("com.tinyfacade.INFERENCE_SERVICE").apply {
-            setPackage("com.llamavision")
+            setPackage("com.tinyfacade")
         }
         val ok = bindService(intent, connection, Context.BIND_AUTO_CREATE)
         if (!ok) {

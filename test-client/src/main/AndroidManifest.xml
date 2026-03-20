@@ -3,7 +3,7 @@
     <uses-permission android:name="com.tinyfacade.permission.USE_INFERENCE" />
 
     <queries>
-        <package android:name="com.llamavision" />
+        <package android:name="com.tinyfacade" />
     </queries>
 
     <application

@@ -47,7 +47,7 @@ class InferenceClient(private val context: Context) {
 
     fun bind() {
         val intent = Intent("com.tinyfacade.INFERENCE_SERVICE").apply {
-            setPackage("com.llamavision")
+            setPackage("com.tinyfacade")
         }
         context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }

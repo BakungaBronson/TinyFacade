@@ -1,97 +1,314 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Tiny Facade
 
-# Getting Started
+**On-device AI inference as an Android service.** Any app can bind to Tiny Facade and run a local language model — no cloud, no API keys, no internet required.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+Tiny Facade loads [GGUF](https://huggingface.co/docs/hub/gguf) models via [llama.cpp](https://github.com/ggerganov/llama.cpp) and exposes them over Android's [AIDL](https://developer.android.com/develop/background-work/services/aidl) interface. Think of it as a **local AI API server** that runs as a background service on your phone.
 
-## Step 1: Start Metro
+## What It Does
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
-
-To start the Metro dev server, run the following command from the root of your React Native project:
-
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+```
+┌──────────────┐        AIDL (IPC)        ┌──────────────┐
+│  Your App    │ ◀──────────────────────▶ │ Tiny Facade  │
+│              │   tokens stream back     │  (service)   │
+│  "What time  │                          │              │
+│   is it?"    │                          │  🧠 llama.cpp│
+└──────────────┘                          └──────────────┘
 ```
 
-## Step 2: Build and run your app
+- **Your app** sends a message (like a chat API)
+- **Tiny Facade** runs inference on the loaded model
+- **Tokens stream back** in real-time — you see the AI "typing"
+- **Tool calling** lets the model execute actions (HTTP requests, file I/O, device info) and respond with real data
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## How It Works
 
-### Android
+```mermaid
+graph TD
+    A[Your App] -->|"sendMessage()"| B[AIDL Binder]
+    B --> C{Tools enabled?}
+    C -->|No| D[Direct Completion]
+    C -->|Yes| E[Tool Calling Loop]
+    E --> F[Model generates response]
+    F --> G{Contains tool call?}
+    G -->|Yes| H[Execute tool]
+    H --> I[Feed result back to model]
+    I --> F
+    G -->|No| J[Final response]
+    D --> J
+    J -->|"onToken() stream"| A
 
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+    style A fill:#e1f5fe
+    style J fill:#c8e6c9
+    style H fill:#fff3e0
 ```
 
-### iOS
+## Quick Start
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+### 1. Install Tiny Facade
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+Build from source or grab the APK from [Releases](../../releases):
 
-```sh
-bundle install
+```bash
+git clone https://github.com/user/TinyFacade.git
+cd TinyFacade/android
+./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-Then, and every time you update your native dependencies, run:
+### 2. Add a Model
 
-```sh
-bundle exec pod install
+Copy any GGUF model to your device:
+
+```bash
+adb push my-model.gguf /sdcard/Android/data/com.tinyfacade/files/
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+### 3. Open the App
 
-```sh
-# Using npm
-npm run ios
+Launch Tiny Facade, select your model, and it loads automatically. The AIDL service starts in the background.
 
-# OR using Yarn
-yarn ios
+### 4. Connect From Your App
+
+Copy the AIDL files to your project and bind:
+
+```kotlin
+val intent = Intent("com.tinyfacade.INFERENCE_SERVICE")
+    .setPackage("com.tinyfacade")
+bindService(intent, connection, Context.BIND_AUTO_CREATE)
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+See the full [SDK documentation](docs/sdk/README.md) for complete integration instructions.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## Architecture
 
-## Step 3: Modify your app
+```mermaid
+graph LR
+    subgraph "Client App"
+        CA[Your Code] --> CB[AIDL Stub]
+    end
 
-Now that you have successfully run the app, let's make changes!
+    subgraph "Tiny Facade"
+        SA[AIDL Binder] --> SB[React Native Bridge]
+        SB --> SC[Service Proxy]
+        SC --> SD["llama.rn (llama.cpp)"]
+        SC --> SE[Tool Registry]
+        SE --> SF[Built-in Tools]
+        SE --> SG[Custom Tools]
+    end
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+    CB <-->|Binder IPC| SA
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+    style CA fill:#e1f5fe
+    style SD fill:#c8e6c9
+    style SE fill:#fff3e0
+```
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+### Key Components
 
-## Congratulations! :tada:
+| Component | What it does |
+|-----------|-------------|
+| **InferenceService** | Android foreground service — the AIDL endpoint clients bind to |
+| **Service Proxy** | Routes external requests to the local model, handles tool calling orchestration |
+| **llama.rn** | React Native bindings for llama.cpp — loads GGUF models and runs inference |
+| **Tool Registry** | Manages built-in and custom tools, dispatches execution |
+| **Action Executor** | Runs tool actions (HTTP, file I/O, system queries) with sandboxed execution |
 
-You've successfully run and modified your React Native App. :partying_face:
+## Tool Calling
 
-### Now what?
+The model can use tools to get real data before responding. Your app doesn't need to manage any of this — just set `enable_tools: true`.
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+### How Tool Calling Works
 
-# Troubleshooting
+```mermaid
+sequenceDiagram
+    participant App as Your App
+    participant TF as Tiny Facade
+    participant LLM as Language Model
+    participant Tool as Tool Executor
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+    App->>TF: sendMessage("What time is it?", enable_tools=true)
+    TF->>LLM: Generate response
+    LLM-->>TF: <tool_call>get_current_time</tool_call>
+    TF->>Tool: Execute get_current_time()
+    Tool-->>TF: {"formatted": "Thursday, March 20, 3:45 PM"}
+    TF->>LLM: Here is the result, respond naturally
+    LLM-->>TF: It is Thursday, March 20th at 3:45 PM
+    TF-->>App: onToken() stream → onComplete()
+```
 
-# Learn More
+Your app never sees the internal tool loop — just streamed tokens and a final natural-language response.
 
-To learn more about React Native, take a look at the following resources:
+### Built-in Tools
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+| Tool | Description |
+|------|-------------|
+| `get_current_time` | Current date/time with timezone support |
+| `get_device_info` | Device platform, OS version |
+| `calculate` | Safe math expression evaluation |
+| `search_contacts` | Contact lookup (mock data) |
+| `get_calendar_events` | Upcoming events (mock data) |
+
+### Custom Tools
+
+Apps can register custom tools over AIDL. Tools use **action-based execution** — no arbitrary code runs on the host device.
+
+```kotlin
+// Register a weather tool that calls wttr.in
+val definition = """
+{
+  "type": "function",
+  "function": {
+    "name": "get_weather",
+    "description": "Get current weather for a city",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": { "type": "string", "description": "City name" }
+      },
+      "required": ["city"]
+    }
+  }
+}"""
+
+val action = """
+{
+  "type": "http",
+  "config": {
+    "method": "GET",
+    "url_template": "https://wttr.in/{{city}}?format=j1",
+    "timeout_ms": 10000
+  }
+}"""
+
+service.registerTool(definition, action)
+```
+
+Now ask "What's the weather in Tokyo?" with tools enabled — the model calls the API and responds with real weather data.
+
+### Action Types
+
+| Type | Status | What it does |
+|------|--------|-------------|
+| `http` | Working | HTTP requests with `{{param}}` URL/body templates |
+| `file` | Working | Read/write/list/exists — sandboxed to `tinyfacade-tools/` |
+| `system` | Partial | `device_info` works; battery/network/location are stubbed |
+| `intent` | Stubbed | Android Intent dispatch (needs native module) |
+| `content_resolver` | Stubbed | ContentResolver queries (needs native module) |
+
+## AIDL Interface
+
+### IInferenceService
+
+```java
+interface IInferenceService {
+    void loadModel(String path, in Bundle params, IInferenceCallback callback);
+    void sendMessage(String messagesJson, in Bundle params, IInferenceCallback callback);
+    boolean isModelLoaded();
+    void stopGeneration();
+    void releaseModel();
+    List<String> getAvailableModels();
+    String getLoadedModelPath();
+
+    // Tool calling
+    String getAvailableTools();
+    boolean registerTool(String toolDefinitionJson, String actionJson);
+    boolean unregisterTool(String toolName);
+}
+```
+
+### IInferenceCallback
+
+```java
+oneway interface IInferenceCallback {
+    void onToken(String token);          // Each generated token
+    void onComplete(String response, String timingsJson);  // Generation done
+    void onError(String message);        // Something went wrong
+    void onModelLoaded(boolean success); // Model load result
+}
+```
+
+### sendMessage Parameters (Bundle)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `n_predict` | int | 512 | Max tokens to generate |
+| `temperature` | float | 0.7 | Sampling temperature (higher = more creative) |
+| `top_p` | float | 0.9 | Top-p nucleus sampling |
+| `stop_sequences` | String | `"[]"` | JSON array of stop strings |
+| `enable_tools` | boolean | false | Enable tool calling orchestration |
+
+## Test Client
+
+The `test-client/` directory contains a standalone Android app that exercises the full AIDL interface.
+
+### Build & Install
+
+```bash
+# Main app (install first — it hosts the service)
+cd android && ./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
+
+# Test client
+cd ../test-client && ../android/gradlew assembleRelease
+adb install -r build/outputs/apk/release/tinyfacade-test-client-release.apk
+```
+
+### What the Test Client Can Do
+
+| Button | Action |
+|--------|--------|
+| **Bind** | Connect to the Tiny Facade service |
+| **Load** | Load the selected GGUF model |
+| **Send** | Send the prompt for inference |
+| **Stop** | Cancel generation mid-stream |
+| **Release** | Free model memory |
+| **Unbind** | Disconnect from the service |
+| **Enable Tools** | Toggle tool calling on/off |
+| **Tools** | Query and log all available tools |
+| **Register** | Register a sample weather tool (wttr.in) |
+
+## Project Structure
+
+```
+TinyFacade/
+├── android/                    # Android native (Kotlin)
+│   └── app/src/main/
+│       ├── aidl/com/tinyfacade/ # AIDL interface definitions
+│       └── java/com/tinyfacade/ # Service, bridge, model holder
+├── src/                        # React Native (TypeScript)
+│   ├── hooks/
+│   │   ├── useLlama.ts         # Model loading & basic inference
+│   │   ├── useToolCalling.ts   # In-app tool calling (thin wrapper)
+│   │   └── useServiceProxy.ts  # AIDL → tool loop orchestration
+│   ├── utils/
+│   │   ├── runToolCallingLoop.ts  # Shared multi-turn tool loop
+│   │   ├── toolRegistry.ts     # Tool registration & dispatch
+│   │   ├── actionExecutor.ts   # HTTP/file/system action runner
+│   │   └── toolExecutor.ts     # Built-in tool implementations
+│   ├── types/                  # TypeScript type definitions
+│   └── native/
+│       └── InferenceService.ts # Native module bridge
+├── test-client/                # Standalone AIDL test app (Kotlin)
+├── docs/sdk/                   # Client SDK docs + sample client
+└── ios/                        # iOS target (not actively developed)
+```
+
+## Security
+
+The AIDL service is protected by a **signature-level permission**. Only apps signed with the same certificate as Tiny Facade can bind to the service.
+
+For development, both apps use the default debug keystore — no extra setup needed.
+
+## Requirements
+
+- Android 8.0+ (API 26)
+- ARM64 device (`arm64-v8a`)
+- A GGUF model file on the device
+
+## Versioning
+
+This project uses [Semantic Versioning](https://semver.org/). See [Releases](../../releases) for pre-built APKs.
+
+## License
+
+MIT

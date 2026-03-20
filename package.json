@@ -1,6 +1,6 @@
 {
-  "name": "LlamaVision",
-  "version": "0.0.1",
+  "name": "TinyFacade",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",

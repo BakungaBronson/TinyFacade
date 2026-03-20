@@ -31,8 +31,8 @@ export function useLlama(modelPath: string | null) {
 
       setModelStatus('loading');
       setLoadProgress(0);
-      console.warn('[LlamaVision] Loading model from:', modelPath);
-      console.warn('[LlamaVision] Mmproj path:', MMPROJ_PATH);
+      console.warn('[TinyFacade] Loading model from:', modelPath);
+      console.warn('[TinyFacade] Mmproj path:', MMPROJ_PATH);
       try {
         const context = await initLlama(
           {
@@ -52,14 +52,14 @@ export function useLlama(modelPath: string | null) {
         }
 
         if (MMPROJ_PATH) {
-          console.warn('[LlamaVision] Initializing multimodal...');
+          console.warn('[TinyFacade] Initializing multimodal...');
           await context.initMultimodal({
             path: MMPROJ_PATH,
             use_gpu: true,
             image_max_tokens: 1024,
           });
         } else {
-          console.warn('[LlamaVision] Text-only mode (no mmproj)');
+          console.warn('[TinyFacade] Text-only mode (no mmproj)');
         }
 
         if (cancelled) {
@@ -73,20 +73,20 @@ export function useLlama(modelPath: string | null) {
         // Diagnostic: log model tool calling capabilities
         try {
           const model = (context as any).model;
-          console.warn('[LlamaVision] Model info:', JSON.stringify(model, null, 2));
-          console.warn('[LlamaVision] Jinja supported:', (context as any).isJinjaSupported?.());
+          console.warn('[TinyFacade] Model info:', JSON.stringify(model, null, 2));
+          console.warn('[TinyFacade] Jinja supported:', (context as any).isJinjaSupported?.());
           if (model?.chatTemplates) {
-            console.warn('[LlamaVision] Chat templates:', JSON.stringify(model.chatTemplates, null, 2));
+            console.warn('[TinyFacade] Chat templates:', JSON.stringify(model.chatTemplates, null, 2));
           }
         } catch (e: any) {
-          console.warn('[LlamaVision] Could not read model info:', e?.message);
+          console.warn('[TinyFacade] Could not read model info:', e?.message);
         }
 
-        console.warn('[LlamaVision] Ready! (registered with service)');
+        console.warn('[TinyFacade] Ready! (registered with service)');
         setModelStatus('ready');
       } catch (err: any) {
         console.warn(
-          '[LlamaVision] Failed to load model:',
+          '[TinyFacade] Failed to load model:',
           err?.message || err,
         );
         if (!cancelled) {
