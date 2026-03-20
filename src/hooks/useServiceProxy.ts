@@ -5,13 +5,41 @@ import {
   InferenceServiceBridge,
   type ExternalInferenceRequest,
   type ExternalLoadRequest,
+  type ExternalRegisterToolRequest,
+  type ExternalUnregisterToolRequest,
 } from '../native/InferenceService';
+import type {ChatMessage} from '../types/chat';
+import {runToolCallingLoop} from '../utils/runToolCallingLoop';
+import {toolRegistry} from '../utils/toolRegistry';
+
+/**
+ * Normalize external messages ({role, content}) to ChatMessage format
+ * that formatMessages() expects ({id, role, text, timestamp}).
+ */
+function normalizeToChatMessages(
+  rawMessages: Array<{role: string; content: string}>,
+): ChatMessage[] {
+  return rawMessages.map((msg, i) => ({
+    id: `ext-${Date.now()}-${i}`,
+    role: msg.role as ChatMessage['role'],
+    text: msg.content ?? '',
+    timestamp: Date.now(),
+  }));
+}
+
+function syncToolsToKotlin() {
+  const defs = toolRegistry.getAllDefinitions();
+  InferenceServiceBridge.updateAvailableTools(JSON.stringify(defs));
+}
 
 export function useServiceProxy(getContext: () => LlamaContext | null) {
   useEffect(() => {
     if (Platform.OS !== 'android') {
       return;
     }
+
+    // Push initial tool definitions to Kotlin cache on mount
+    syncToolsToKotlin();
 
     const inferSub = InferenceServiceBridge.addExternalInferenceRequestListener(
       async (request: ExternalInferenceRequest) => {
@@ -22,28 +50,60 @@ export function useServiceProxy(getContext: () => LlamaContext | null) {
         }
 
         try {
-          const messages = JSON.parse(request.messagesJson);
+          const rawMessages = JSON.parse(request.messagesJson);
           const stopSequences = JSON.parse(request.stopSequences || '[]');
 
-          const result = await context.completion(
-            {
-              messages,
-              n_predict: request.nPredict,
-              temperature: request.temperature,
-              top_p: request.topP,
-              stop: stopSequences,
-            },
-            tokenData => {
-              if (tokenData.token) {
-                InferenceServiceBridge.deliverToken(tokenData.token);
-              }
-            },
-          );
+          if (request.enableTools) {
+            // Normalize {role,content} → ChatMessage {id,role,text,timestamp}
+            // so formatMessages() can read msg.text correctly
+            const chatMessages = normalizeToChatMessages(rawMessages);
 
-          InferenceServiceBridge.deliverComplete(
-            result.text,
-            JSON.stringify(result.timings ?? {}),
-          );
+            // Tool calling path: run the full orchestration loop
+            const result = await runToolCallingLoop(
+              context,
+              chatMessages,
+              toolRegistry.getAllDefinitions(),
+              token => {
+                InferenceServiceBridge.deliverToken(token);
+              },
+              _toolName => {
+                // Tool status is internal — AIDL client just sees tokens
+              },
+              {
+                n_predict: request.nPredict,
+                temperature: request.temperature,
+                top_p: request.topP,
+                stop: stopSequences,
+              },
+            );
+
+            InferenceServiceBridge.deliverComplete(
+              result?.text ?? '',
+              JSON.stringify(result?.timings ?? {}),
+            );
+          } else {
+            // Plain completion path (existing behavior) — raw {role,content}
+            // is what llama.rn context.completion() expects
+            const result = await context.completion(
+              {
+                messages: rawMessages,
+                n_predict: request.nPredict,
+                temperature: request.temperature,
+                top_p: request.topP,
+                stop: stopSequences,
+              },
+              tokenData => {
+                if (tokenData.token) {
+                  InferenceServiceBridge.deliverToken(tokenData.token);
+                }
+              },
+            );
+
+            InferenceServiceBridge.deliverComplete(
+              result.text,
+              JSON.stringify(result.timings ?? {}),
+            );
+          }
         } catch (err: any) {
           InferenceServiceBridge.deliverError(
             err?.message || 'Unknown inference error',
@@ -60,37 +120,57 @@ export function useServiceProxy(getContext: () => LlamaContext | null) {
 
     const loadSub = InferenceServiceBridge.addExternalLoadRequestListener(
       async (_request: ExternalLoadRequest) => {
-        // The main app manages model loading via useLlama.
-        // If a model is already loaded, the binder handles it directly.
-        // If we get here, the external client wants a model that isn't loaded yet.
-        // We can't force the main app to load a different model from here,
-        // so report the current state.
         const context = getContext();
         if (context) {
           InferenceServiceBridge.deliverModelLoaded(true);
         } else {
-          InferenceServiceBridge.deliverError(
-            'No model loaded in main app. Please open the app and load a model first.',
-          );
+          // Use deliverModelLoaded(false) — deliverError targets
+          // pendingInferenceCallback, not pendingLoadCallback
+          InferenceServiceBridge.deliverModelLoaded(false);
         }
       },
     );
 
     const releaseSub = InferenceServiceBridge.addExternalReleaseRequestListener(
       () => {
-        // External clients shouldn't release the main app's model.
-        // This is a no-op to prevent external clients from disrupting the main app.
         console.warn(
           '[ServiceProxy] External release request ignored — model lifecycle is managed by main app',
         );
       },
     );
 
+    const registerToolSub =
+      InferenceServiceBridge.addExternalRegisterToolListener(
+        (request: ExternalRegisterToolRequest) => {
+          try {
+            const definition = JSON.parse(request.toolDefinitionJson);
+            const action = JSON.parse(request.actionJson);
+            toolRegistry.register(definition, action);
+            syncToolsToKotlin();
+          } catch (err: any) {
+            console.warn(
+              '[ServiceProxy] Failed to register external tool:',
+              err?.message,
+            );
+          }
+        },
+      );
+
+    const unregisterToolSub =
+      InferenceServiceBridge.addExternalUnregisterToolListener(
+        (request: ExternalUnregisterToolRequest) => {
+          toolRegistry.unregister(request.toolName);
+          syncToolsToKotlin();
+        },
+      );
+
     return () => {
       inferSub?.remove();
       stopSub?.remove();
       loadSub?.remove();
       releaseSub?.remove();
+      registerToolSub?.remove();
+      unregisterToolSub?.remove();
     };
   }, [getContext]);
 }

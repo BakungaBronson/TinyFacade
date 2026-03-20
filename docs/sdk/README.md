@@ -127,6 +127,88 @@ service?.releaseModel()
 val loaded = service?.isModelLoaded() ?: false
 ```
 
+## Tool Calling
+
+AIDL clients can leverage built-in and custom tools without managing the tool loop themselves. TinyFacade handles all orchestration: prompt building, parsing, execution, and iteration.
+
+### Enabling Tools
+
+Pass `enable_tools: true` in the `sendMessage` params Bundle:
+
+```kotlin
+val params = Bundle().apply {
+    putInt("n_predict", 512)
+    putFloat("temperature", 0.7f)
+    putBoolean("enable_tools", true) // enable tool calling
+}
+
+service?.sendMessage(messagesJson, params, callback)
+```
+
+When enabled, the model can call tools (e.g., `get_current_time`, `calculate`) and TinyFacade runs the tool loop server-side. The AIDL client receives streamed tokens and the final response — the tool loop is transparent.
+
+### Querying Available Tools
+
+```kotlin
+val toolsJson = service?.availableTools  // JSON array of tool definitions
+```
+
+Returns a JSON array of all registered tool definitions (built-in + custom).
+
+### Registering Custom Tools
+
+Custom tools use **action-based execution** — no arbitrary code runs on the host. You define a tool with a JSON schema and an action that specifies how to execute it.
+
+```kotlin
+val definition = """
+{
+  "type": "function",
+  "function": {
+    "name": "get_weather",
+    "description": "Get current weather for a city",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": { "type": "string", "description": "City name" }
+      },
+      "required": ["city"]
+    }
+  }
+}
+""".trimIndent()
+
+val action = """
+{
+  "type": "http",
+  "config": {
+    "method": "GET",
+    "url_template": "https://wttr.in/{{city}}?format=j1",
+    "timeout_ms": 10000
+  }
+}
+""".trimIndent()
+
+service?.registerTool(definition, action)
+```
+
+### Action Types
+
+| Type | Status | Description |
+|------|--------|-------------|
+| `http` | Full | HTTP request with method/headers/body/timeout. Supports `{{param}}` templates. |
+| `file` | Full | Read/write/list/exists. Sandboxed to `tinyfacade-tools/` directory. |
+| `system` | Partial | `device_info` works; `battery`, `network`, `location`, `storage` are stubbed. |
+| `intent` | Stubbed | Android Intent dispatch (requires future native module). |
+| `content_resolver` | Stubbed | ContentResolver queries (requires future native module). |
+
+### Unregistering Tools
+
+```kotlin
+service?.unregisterTool("get_weather")  // returns true if removed
+```
+
+Built-in tools cannot be unregistered.
+
 ## AIDL Interface Reference
 
 ### IInferenceService
@@ -138,6 +220,9 @@ val loaded = service?.isModelLoaded() ?: false
 | `isModelLoaded()` | Check if a model is currently loaded |
 | `stopGeneration()` | Cancel in-progress generation |
 | `releaseModel()` | Free model memory |
+| `getAvailableTools()` | Get JSON array of all tool definitions |
+| `registerTool(definitionJson, actionJson)` | Register a custom tool with action-based execution |
+| `unregisterTool(toolName)` | Remove a custom tool (built-ins protected) |
 
 ### IInferenceCallback (oneway)
 
@@ -159,6 +244,7 @@ val loaded = service?.isModelLoaded() ?: false
 - `temperature` (float, default 0.7) — Sampling temperature
 - `top_p` (float, default 0.9) — Top-p sampling
 - `stop_sequences` (String, default "[]") — JSON array of stop strings
+- `enable_tools` (boolean, default false) — Enable tool calling orchestration
 
 ## Security
 

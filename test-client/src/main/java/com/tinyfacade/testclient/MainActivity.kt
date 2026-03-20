@@ -28,6 +28,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textLog: TextView
     private lateinit var scrollLog: ScrollView
     private lateinit var btnLoad: Button
+    private lateinit var chkEnableTools: CheckBox
 
     private val modelPaths = mutableListOf<String>()
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
@@ -68,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         textLog = findViewById(R.id.textLog)
         scrollLog = findViewById(R.id.scrollLog)
         btnLoad = findViewById(R.id.btnLoad)
+        chkEnableTools = findViewById(R.id.chkEnableTools)
 
         findViewById<Button>(R.id.btnBind).setOnClickListener { doBind() }
         btnLoad.setOnClickListener { doLoad() }
@@ -75,6 +77,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnStop).setOnClickListener { doStop() }
         findViewById<Button>(R.id.btnRelease).setOnClickListener { doRelease() }
         findViewById<Button>(R.id.btnUnbind).setOnClickListener { doUnbind() }
+        findViewById<Button>(R.id.btnTools).setOnClickListener { doQueryTools() }
+        findViewById<Button>(R.id.btnRegister).setOnClickListener { doRegisterWeatherTool() }
 
         log("Ready. Tap Bind to connect to InferenceService.")
     }
@@ -208,13 +212,15 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val prompt = editPrompt.text.toString().ifBlank { "Hello" }
-        log("Sending prompt: $prompt")
+        val toolsEnabled = chkEnableTools.isChecked
+        log("Sending prompt: $prompt (tools=${if (toolsEnabled) "ON" else "OFF"})")
 
         val messagesJson = """[{"role":"user","content":"$prompt"}]"""
         val params = Bundle().apply {
             putInt("n_predict", 512)
             putFloat("temperature", 0.7f)
             putFloat("top_p", 0.9f)
+            putBoolean("enable_tools", toolsEnabled)
         }
 
         svc.sendMessage(messagesJson, params, object : IInferenceCallback.Stub() {
@@ -234,6 +240,61 @@ class MainActivity : AppCompatActivity() {
 
             override fun onModelLoaded(success: Boolean) {}
         })
+    }
+
+    private fun doQueryTools() {
+        val svc = requireBound() ?: return
+        try {
+            val toolsJson = svc.availableTools
+            log("Available tools: $toolsJson")
+        } catch (e: Exception) {
+            log("ERROR querying tools: ${e.message}")
+        }
+    }
+
+    private fun doRegisterWeatherTool() {
+        val svc = requireBound() ?: return
+        try {
+            val definition = """
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "description": "Get current weather for a city using wttr.in",
+                    "parameters": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "string",
+                          "description": "City name (e.g. Tokyo, London, New York)"
+                        }
+                      },
+                      "required": ["city"]
+                    }
+                  }
+                }
+            """.trimIndent()
+
+            val action = """
+                {
+                  "type": "http",
+                  "config": {
+                    "method": "GET",
+                    "url_template": "https://wttr.in/{{city}}?format=j1",
+                    "timeout_ms": 10000
+                  }
+                }
+            """.trimIndent()
+
+            val ok = svc.registerTool(definition, action)
+            if (ok) {
+                log("Registered weather tool (get_weather)")
+            } else {
+                log("Failed to register weather tool")
+            }
+        } catch (e: Exception) {
+            log("ERROR registering tool: ${e.message}")
+        }
     }
 
     private fun doStop() {

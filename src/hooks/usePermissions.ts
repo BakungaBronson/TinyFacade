@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {Platform, PermissionsAndroid} from 'react-native';
+import {Platform, PermissionsAndroid, type Permission} from 'react-native';
 
 export function usePermissions() {
   const [permissionsReady, setPermissionsReady] = useState(
@@ -12,9 +12,9 @@ export function usePermissions() {
     }
 
     const requestPermissions = async () => {
-      const permissions: string[] = [];
+      const permissions: Permission[] = [];
 
-      if (Platform.Version >= 33) {
+      if (Number(Platform.Version) >= 33) {
         permissions.push(
           PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
           PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,

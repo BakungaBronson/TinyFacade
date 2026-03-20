@@ -28,6 +28,8 @@ class InferenceServiceModule(reactContext: ReactApplicationContext) :
         private const val EVENT_EXTERNAL_LOAD_REQUEST = "onExternalLoadRequest"
         private const val EVENT_EXTERNAL_STOP_REQUEST = "onExternalStopRequest"
         private const val EVENT_EXTERNAL_RELEASE_REQUEST = "onExternalReleaseRequest"
+        private const val EVENT_EXTERNAL_REGISTER_TOOL = "onExternalRegisterTool"
+        private const val EVENT_EXTERNAL_UNREGISTER_TOOL = "onExternalUnregisterTool"
     }
 
     init {
@@ -63,7 +65,9 @@ class InferenceServiceModule(reactContext: ReactApplicationContext) :
             "EXTERNAL_INFERENCE_REQUEST" to EVENT_EXTERNAL_INFERENCE_REQUEST,
             "EXTERNAL_LOAD_REQUEST" to EVENT_EXTERNAL_LOAD_REQUEST,
             "EXTERNAL_STOP_REQUEST" to EVENT_EXTERNAL_STOP_REQUEST,
-            "EXTERNAL_RELEASE_REQUEST" to EVENT_EXTERNAL_RELEASE_REQUEST
+            "EXTERNAL_RELEASE_REQUEST" to EVENT_EXTERNAL_RELEASE_REQUEST,
+            "EXTERNAL_REGISTER_TOOL" to EVENT_EXTERNAL_REGISTER_TOOL,
+            "EXTERNAL_UNREGISTER_TOOL" to EVENT_EXTERNAL_UNREGISTER_TOOL
         )
     }
 
@@ -341,6 +345,14 @@ class InferenceServiceModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun getLoadedModelPath(promise: Promise) {
         promise.resolve(ModelHolder.modelPath ?: "")
+    }
+
+    // --- Tool registry sync (JS → ModelHolder cache) ---
+
+    @ReactMethod
+    fun updateAvailableTools(toolsJson: String) {
+        ModelHolder.availableToolsJson = toolsJson
+        Log.i(TAG, "Updated available tools cache (${toolsJson.length} chars)")
     }
 
     // --- Delivery methods (JS → AIDL callback) ---

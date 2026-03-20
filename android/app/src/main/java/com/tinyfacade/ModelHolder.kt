@@ -7,6 +7,7 @@ object ModelHolder {
 
     @Volatile var pendingInferenceCallback: IInferenceCallback? = null
     @Volatile var pendingLoadCallback: IInferenceCallback? = null
+    @Volatile var availableToolsJson: String? = null
 
     fun register(id: Int, path: String) {
         contextId = id

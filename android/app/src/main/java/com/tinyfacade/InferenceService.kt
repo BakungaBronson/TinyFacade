@@ -62,14 +62,16 @@ class InferenceService : Service() {
             val temperature = params?.getFloat("temperature", 0.7f) ?: 0.7f
             val topP = params?.getFloat("top_p", 0.9f) ?: 0.9f
             val stopSeqs = params?.getString("stop_sequences", "[]") ?: "[]"
+            val enableTools = params?.getBoolean("enable_tools", false) ?: false
 
-            Log.i(TAG, "Routing inference request to JS")
+            Log.i(TAG, "Routing inference request to JS (enableTools=$enableTools)")
             moduleRef?.emitExternalEvent("onExternalInferenceRequest", Bundle().apply {
                 putString("messagesJson", messagesJson)
                 putInt("nPredict", nPredict)
                 putFloat("temperature", temperature)
                 putFloat("topP", topP)
                 putString("stopSequences", stopSeqs)
+                putBoolean("enableTools", enableTools)
             })
                 ?: run {
                     Log.e(TAG, "InferenceServiceModule not registered")
@@ -90,6 +92,33 @@ class InferenceService : Service() {
         override fun releaseModel() {
             Log.i(TAG, "Routing release request to JS")
             moduleRef?.emitExternalEvent("onExternalReleaseRequest", null)
+        }
+
+        override fun getAvailableTools(): String {
+            return ModelHolder.availableToolsJson ?: "[]"
+        }
+
+        override fun registerTool(toolDefinitionJson: String, actionJson: String): Boolean {
+            Log.i(TAG, "Routing registerTool to JS")
+            moduleRef?.emitExternalEvent("onExternalRegisterTool", Bundle().apply {
+                putString("toolDefinitionJson", toolDefinitionJson)
+                putString("actionJson", actionJson)
+            }) ?: run {
+                Log.e(TAG, "InferenceServiceModule not registered")
+                return false
+            }
+            return true
+        }
+
+        override fun unregisterTool(toolName: String): Boolean {
+            Log.i(TAG, "Routing unregisterTool to JS: $toolName")
+            moduleRef?.emitExternalEvent("onExternalUnregisterTool", Bundle().apply {
+                putString("toolName", toolName)
+            }) ?: run {
+                Log.e(TAG, "InferenceServiceModule not registered")
+                return false
+            }
+            return true
         }
 
         override fun getAvailableModels(): List<String> {

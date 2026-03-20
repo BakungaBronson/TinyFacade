@@ -11,4 +11,9 @@ interface IInferenceService {
     void releaseModel();
     List<String> getAvailableModels();
     String getLoadedModelPath();
+
+    // Tool calling support
+    String getAvailableTools();
+    boolean registerTool(String toolDefinitionJson, String actionJson);
+    boolean unregisterTool(String toolName);
 }

@@ -35,6 +35,16 @@ export interface ExternalInferenceRequest {
   temperature: number;
   topP: number;
   stopSequences: string;
+  enableTools: boolean;
+}
+
+export interface ExternalRegisterToolRequest {
+  toolDefinitionJson: string;
+  actionJson: string;
+}
+
+export interface ExternalUnregisterToolRequest {
+  toolName: string;
 }
 
 export interface ExternalLoadRequest {
@@ -193,6 +203,15 @@ export const InferenceServiceBridge = {
     return InferenceServiceModule.getLoadedModelPath();
   },
 
+  // --- Tool registry sync (JS → Kotlin cache) ---
+
+  updateAvailableTools(toolsJson: string): void {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    InferenceServiceModule.updateAvailableTools(toolsJson);
+  },
+
   // --- Delivery methods (JS → AIDL callback) ---
 
   deliverToken(token: string): void {
@@ -295,5 +314,23 @@ export const InferenceServiceBridge = {
       return null;
     }
     return eventEmitter.addListener('onExternalReleaseRequest', callback);
+  },
+
+  addExternalRegisterToolListener(
+    callback: (request: ExternalRegisterToolRequest) => void,
+  ): EmitterSubscription | null {
+    if (!eventEmitter) {
+      return null;
+    }
+    return eventEmitter.addListener('onExternalRegisterTool', callback);
+  },
+
+  addExternalUnregisterToolListener(
+    callback: (request: ExternalUnregisterToolRequest) => void,
+  ): EmitterSubscription | null {
+    if (!eventEmitter) {
+      return null;
+    }
+    return eventEmitter.addListener('onExternalUnregisterTool', callback);
   },
 };
