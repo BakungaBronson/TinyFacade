@@ -49,7 +49,7 @@ graph TD
 Build from source or grab the APK from [Releases](../../releases):
 
 ```bash
-git clone https://github.com/user/TinyFacade.git
+git clone https://github.com/BakungaBronson/TinyFacade.git
 cd TinyFacade/android
 ./gradlew assembleRelease
 adb install -r app/build/outputs/apk/release/app-release.apk
@@ -78,6 +78,33 @@ bindService(intent, connection, Context.BIND_AUTO_CREATE)
 ```
 
 See the full [SDK documentation](docs/sdk/README.md) for complete integration instructions.
+
+## Claude Code Plugin
+
+If you use [Claude Code](https://claude.ai/claude-code), install the **TinyFacade plugin** to get AI-assisted scaffolding and integration help:
+
+```bash
+git clone https://github.com/BakungaBronson/tinyfacade-plugin.git ~/.claude/tinyfacade-plugin
+~/.claude/tinyfacade-plugin/install.sh
+```
+
+Or test locally without installing:
+
+```bash
+claude --plugin-dir /path/to/tinyfacade-plugin
+```
+
+This gives you 5 skills:
+
+| Skill | What it does |
+|-------|-------------|
+| `/tinyfacade` | Get started — overview, architecture, prerequisites |
+| `/tinyfacade-scaffold [pkg] [name]` | Generate a complete client project (AIDL, Gradle, Activity, layout) |
+| `/tinyfacade-connect [pkg]` | Add TinyFacade integration to an existing project |
+| `/tinyfacade-tools [name] [type]` | Generate custom tool registration code |
+| `/tinyfacade-troubleshoot [issue]` | Debug binding, models, performance, tools, signing issues |
+
+Plugin repo: [github.com/BakungaBronson/tinyfacade-plugin](https://github.com/BakungaBronson/tinyfacade-plugin)
 
 ## Architecture
 
