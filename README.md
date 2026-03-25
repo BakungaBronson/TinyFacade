@@ -4,6 +4,15 @@
 
 Tiny Facade loads [GGUF](https://huggingface.co/docs/hub/gguf) models via [llama.cpp](https://github.com/ggerganov/llama.cpp) and exposes them over Android's [AIDL](https://developer.android.com/develop/background-work/services/aidl) interface. Think of it as a **local AI API server** that runs as a background service on your phone.
 
+## Resources
+
+| Resource | Link |
+|----------|------|
+| Tool Calling Modified GGUFs | [Hugging Face Collection](https://huggingface.co/collections/Bronsn/tiny-facade-multilingual-tool-calling-models) |
+| Tiny Facade + AIDL Client Code | [GitHub — BakungaBronson/TinyFacade](https://github.com/BakungaBronson/TinyFacade) |
+| Claude Code Plugin | [GitHub — BakungaBronson/tinyfacade-plugin](https://github.com/BakungaBronson/tinyfacade-plugin) |
+| Linga App | [GitHub — Gimmyalex/linga](https://github.com/Gimmyalex/linga) |
+
 ## What It Does
 
 ```
